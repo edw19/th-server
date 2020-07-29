@@ -9,8 +9,8 @@ import path from 'path';
 
 const app = express();
 
-existsSync(path.join(__dirname, "./static/imagenes")) || mkdirSync(path.join(__dirname, "./static/imagenes"), {recursive: true})
-existsSync(path.join(__dirname, "./static/contratos")) || mkdirSync(path.join(__dirname, "./static/contratos"), {recursive: true})
+existsSync(path.join(__dirname, "./static/imagenes")) || mkdirSync(path.join(__dirname, "./static/imagenes"), { recursive: true })
+existsSync(path.join(__dirname, "./static/contratos")) || mkdirSync(path.join(__dirname, "./static/contratos"), { recursive: true })
 
 // Configuraciones 
 const corsOptions = {
@@ -72,10 +72,18 @@ const server = new ApolloServer({
     typeDefs,
     resolvers,
     context,
-    // formatError, 
-    // cors: false
+    // cors: false,
+    // formatError 
 })
 
-server.applyMiddleware({ app, cors: false })
+server.applyMiddleware({ app,
+    cors: {
+        credentials: true,
+        origin: true
+    },
+    path: "/graphql"
+})
+
+// server.applyMiddleware({ app, cors: false })
 export default app
 
