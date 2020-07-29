@@ -3,7 +3,7 @@ import app from './server'
 
 async function main() {
     app.listen(app.get('port'))
-    console.log(`Servidor en : http://localhost:${app.get('port')}/graphql`)
+    console.log(`Servidor en on : http://localhost:${app.get('port')}/graphql`)
 }
 
 process.on('unhandledRejection', error => {
