@@ -42,6 +42,10 @@ app.post('/logout', async (req, res) => {
     res.redirect('/')
 });
 
+app.get("/", (req, res) => {
+    res.send("hola")
+})
+
 app.use('/imagenes', express.static(path.join(__dirname, './static/imagenes')));
 app.use('/contratos', express.static(path.join(__dirname, './static/contratos')));
 
