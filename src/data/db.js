@@ -6,7 +6,6 @@ mongoose.Promise = global.Promise;
 mongoose.set("useFindAndModify", false);
 mongoose.set("useCreateIndex", true);
 
-console.log(process.env.MONGOOSE_URI)
 const URI = process.env.MONGOOSE_URI
   ? process.env.MONGOOSE_URI
   : "mongodb://localhost/t-humano";

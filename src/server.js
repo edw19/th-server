@@ -73,7 +73,7 @@ const server = new ApolloServer({
     resolvers,
     context,
     // formatError, 
-    cors: false
+    // cors: false
 })
 
 server.applyMiddleware({ app, cors: false })
