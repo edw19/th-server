@@ -9,6 +9,7 @@ mongoose.set("useCreateIndex", true);
 const URI = process.env.MONGOOSE_URI
   ? process.env.MONGOOSE_URI
   : "mongodb://localhost/t-humano";
+  
 mongoose.connect(URI, { useNewUrlParser: true, useUnifiedTopology: true });
 
 const usuariosSchema = new Schema({

@@ -72,18 +72,11 @@ const server = new ApolloServer({
     typeDefs,
     resolvers,
     context,
-    // cors: false,
+    cors: false,
     // formatError 
 })
 
-server.applyMiddleware({ app,
-    cors: {
-        credentials: true,
-        origin: true
-    },
-    path: "/graphql"
-})
 
-// server.applyMiddleware({ app, cors: false })
+server.applyMiddleware({ app, cors: false })
 export default app
 
