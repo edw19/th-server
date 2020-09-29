@@ -1,11 +1,15 @@
 import express from 'express';
-import { ApolloServer, AuthenticationError } from 'apollo-server-express';
+import { ApolloServer } from 'apollo-server-express';
 import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { typeDefs, resolvers } from './data/schema';
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
+import { Contratos } from './data/db';
+import zip from 'express-zip'
+
+
 
 const app = express();
 
@@ -23,6 +27,7 @@ app.disable('x-powered-by');
 // middlewares
 app.use(cors(corsOptions))
 app.use(cookieParser())
+// app.use(body_parser.urlencoded({extended: true}))
 app.use(express.urlencoded({ extended: true }))
 
 // routes
@@ -43,37 +48,75 @@ app.post('/logout', async (req, res) => {
 });
 
 app.get("/", (req, res) => {
-    res.send("hola")
-})
+    res.send("Sistema de administración de talento humano");
+});
+
+app.get('/contratos-funcionario', async (req, res) => {
+    const result = await Contratos.find({ funcionario: req.query.funcionario, periodo: req.query.periodo }).exec();
+    let archivos = []
+    result.forEach(contrato => {
+        archivos.push({ path: path.join(__dirname, `/static/contratos/${contrato.nombreArchivo}`), name: removeAccents(contrato.nombreArchivo) })
+    })
+    res.zip(archivos)
+});
+app.get('/todos-contratos', async (req, res) => {
+    const result = await Contratos.find({ funcionario: req.query.funcionario}).exec();
+    let archivos = []
+    result.forEach(contrato => {
+        archivos.push({ path: path.join(__dirname, `/static/contratos/${contrato.nombreArchivo}`), name: removeAccents(contrato.nombreArchivo) })
+    })
+    res.zip(archivos)
+});
+app.get('/todos-contratos-periodo', async (req, res) => {
+    const result = await Contratos.find({ periodo: req.query.periodo}).exec();
+    let archivos = []
+    result.forEach(contrato => {
+        archivos.push({ path: path.join(__dirname, `/static/contratos/${contrato.nombreArchivo}`), name: removeAccents(contrato.nombreArchivo) })
+    })
+    res.zip(archivos)
+});
+
+
 
 app.use('/imagenes', express.static(path.join(__dirname, './static/imagenes')));
 app.use('/contratos', express.static(path.join(__dirname, './static/contratos')));
 
+// funcion para quitar accentos en javascript
+const removeAccents = (str) => {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
 
-const context = async ({ req }) => {
-    const token = req.cookies['jwt']
-    if (typeof token != 'undefined') {
+
+async function context({ req }) {
+    const token = req.headers['authorization'];
+    if (token) {
         try {
-            const cliente = await jwt.verify(token, process.env.MI_CODIGO_SECRETO)
-            return { cliente }
+            const usuario = jwt.verify(token.replace('Bearer ', ''), process.env.MI_CODIGO_SECRETO)
+            return usuario
         } catch (error) {
-            throw new AuthenticationError(
-                'no tienes un token de session, loggeate'
-            )
+            console.log(error)
+            // throw new AuthenticationError(
+            //     'no tienes un token de session, loggeate'
+            // )
         }
     }
 }
 
-// async function formatError (e) {
-//     console.log(e.message)
-// }
+async function formatError(e) {
+    console.log(e.message)
+}
 
 const server = new ApolloServer({
     typeDefs,
     resolvers,
     context,
     cors: false,
-    // formatError 
+    playground: {
+        settings: {
+            "request.credentials": 'same-origin'
+        }
+    },
+    formatError 
 })
 
 

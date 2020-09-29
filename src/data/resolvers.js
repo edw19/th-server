@@ -13,13 +13,16 @@ import jwt from "jsonwebtoken";
 import { createWriteStream, unlinkSync } from "fs";
 import path from "path";
 import mail from 'nodemailer';
+import fs from 'fs'
+import { AuthenticationError } from "apollo-server-express";
+import { totalPermisosFuncion } from "./helpers";
+import { totalPermisosReportes } from "./helpers";
 const ObjectId = mongoose.Types.ObjectId;
 
 
 
 // generar token de autenticación
-const crearToken = (usuarioLogin, secreto, expiresIn) => {
-  const { usuario } = usuarioLogin;
+const crearToken = (usuario, secreto, expiresIn) => {
   return jwt.sign({ usuario }, secreto, { expiresIn });
 };
 
@@ -37,6 +40,50 @@ let imagen = [];
 
 export const resolvers = {
   Query: {
+
+    // todos los archivos de un funcionario
+    todosContratosFuncionario: () => {
+
+    },
+    // Reportes 
+    obtenerSaldoVacionesPermisosFuncionarios: async (_, { periodo, tipoFuncionario }) => {
+      let funcionarios = []
+      if (tipoFuncionario === '*') {
+        funcionarios = await Funcionario.aggregate([
+          { $lookup: { from: 'permisos', localField: '_id', foreignField: 'funcionario', as: 'permisos' } },
+          { $lookup: { from: 'vacaciones', localField: '_id', foreignField: 'funcionario', as: 'vacaciones' } }
+        ]).sort({ apellido: 1 });
+      } else {
+        funcionarios = await Funcionario.aggregate([
+          { $match: { tipoFuncionario, } },
+          { $lookup: { from: 'permisos', localField: '_id', foreignField: 'funcionario', as: 'permisos' } },
+          { $lookup: { from: 'vacaciones', localField: '_id', foreignField: 'funcionario', as: 'vacaciones' } }
+        ]).sort({ apellido: 1 });
+      }
+      funcionarios.forEach(funcionario => {
+        funcionario.permisos = Object.keys(funcionario.permisos.filter(per => per.descontado === true && per.estado === true && per.periodo == periodo)).length;
+        funcionario.vacaciones = Object.keys(funcionario.vacaciones.filter(vac => vac.estado === true && vac.periodo == periodo)).length;
+      })
+      return funcionarios;
+    },
+    obtenerPermisosReporte: async (_, { id, periodo }) => {
+      const reporte = {};
+      const res = await Permisos.find({ funcionario: id, estado: true, descontado: true, periodo }).exec();
+      const resultado = await totalPermisosReportes(id, periodo);
+      reporte.permisos = res
+      reporte.resultado = resultado
+      return reporte
+    },
+    // usuarios
+    obtenerUsuarios: async (_, __, { usuario }) => {
+      if (usuario.rol !== "ADMINISTRADOR") throw new Error("No privilegios para realizar esta acción");
+      return await Usuarios.find().exec();
+    },
+    // obtener todos los funcionarios
+    obtenerFuncionarios: async (_, __, { usuario }) => {
+      // if (usuario.rol !== "ADMINISTRADOR") throw new Error('No privilegios para realizar esta acción')
+      return await Funcionario.find({}).sort({ apellido: 1 }).exec();
+    },
     // DASHBOARD
     numeroEmpleadosPorTipo: async () => {
       const docentes = await Funcionario.find({
@@ -46,35 +93,36 @@ export const resolvers = {
         tipoFuncionario: "ADMINISTRATIVO",
       }).countDocuments();
       const codigoLaboral = await Funcionario.find({
-        tipoFuncionario: "CÓDIGO LABORAL",
+        tipoFuncionario: "CÓDIGO DE TRABAJO",
       }).countDocuments();
       return [
-        { name: "Docentes", numero: docentes },
-        { name: "Administrativos", numero: administrativos },
-        { name: "CódigoLaboral", numero: codigoLaboral },
+        { name: "Docentes", valor: docentes },
+        { name: "Administrativos", valor: administrativos },
+        { name: "Código", valor: codigoLaboral },
+        { name: "Total", valor: docentes + administrativos + codigoLaboral },
       ];
     },
     porcentajeHombreMujeres: async () => {
-      const [{ femenino }] = await Funcionario.aggregate([
+      const funcionarioFemenino = await Funcionario.aggregate([
         { $match: { genero: "FEMENINO" } },
         { $count: "femenino" },
       ]);
-      const [{ masculino }] = await Funcionario.aggregate([
+      const funcionarioMasculino = await Funcionario.aggregate([
         { $match: { genero: "MASCULINO" } },
         { $count: "masculino" },
       ]);
       const total = await Funcionario.countDocuments();
 
-      const porcentajeFemenino = (femenino * 100) / total;
-      const porcentajeMasculino = (masculino * 100) / total;
 
+      const porcentajeFemenino = (funcionarioFemenino[0].femenino * 100) / total;
+      const porcentajeMasculino = (funcionarioMasculino[0].masculino * 100) / total;
       return [
         {
           genero: "Masculino",
-          porcentaje: porcentajeMasculino,
-          value: masculino,
+          porcentaje: Math.round(porcentajeMasculino),
+          value: funcionarioMasculino[0].masculino,
         },
-        { genero: "Femenino", porcentaje: porcentajeFemenino, value: femenino },
+        { genero: "Femenino", porcentaje: Math.round(porcentajeFemenino), value: funcionarioFemenino[0].femenino },
       ];
     },
     edadPromedioMF: async () => {
@@ -139,18 +187,19 @@ export const resolvers = {
       const porcentaje = (funcionariosDiscapacidad * 100) / totalFuncionario;
       return [
         {
-          porcentaje: Math.ceil(porcentaje),
+          porcentaje: Math.round(porcentaje, -1),
           total: funcionariosDiscapacidad,
         },
       ];
     },
 
     // contratos
-    obtenerContratos: async (_, { funcionario, limite, offset }) => {
+    obtenerContratos: async (_, { funcionario, periodo, limite, offset }) => {
       const totalContratos = await Contratos.find({
         funcionario,
+        periodo
       }).countDocuments();
-      const contratos = await Contratos.find({ funcionario })
+      const contratos = await Contratos.find({ funcionario, periodo })
         .sort({ creado_en: -1 })
         .limit(limite)
         .skip(offset);
@@ -206,67 +255,7 @@ export const resolvers = {
     },
     //permisos
     totalPermisos: async (root, { id, idPeriodo }) => {
-      const numeroDePermisos = await Permisos.countDocuments({
-        funcionario: id,
-        periodo: idPeriodo,
-        descontado: false,
-      });
-      const acumulados = await Funcionario.findById(id);
-      const resultado = await Permisos.aggregate([
-        {
-          $match: {
-            funcionario: ObjectId(id),
-            estado: true,
-            descontado: false,
-            periodo: ObjectId(idPeriodo),
-          },
-        },
-        {
-          $group: {
-            _id: "$funcionario",
-            totalHoras: { $sum: "$horasPermiso" },
-            totalMinutos: { $sum: "$minutosPermiso" },
-          },
-        },
-      ]);
-      let totalHoras = 0;
-      let totalMinutos = 0;
-
-      if (Object.keys(resultado).length > 0) {
-        totalHoras = resultado[0].totalHoras + acumulados.horasAcumuladas;
-        totalMinutos = resultado[0].totalMinutos + acumulados.minutosAcumulados;
-      }
-
-      const TotalPermisos = {
-        totalPermisos: numeroDePermisos,
-        totalHoras,
-        totalHorasSin: totalHoras,
-        totalMinutos,
-        totalMinutosSin: totalMinutos,
-        totalDias: 0,
-      };
-
-      let dias = 0;
-      let horas = !TotalPermisos.totalHoras ? 0 : TotalPermisos.totalHoras;
-      let minutos = !TotalPermisos.totalMinutos
-        ? 0
-        : TotalPermisos.totalMinutos;
-
-      if (TotalPermisos.totalMinutos >= 60) {
-        horas = Math.trunc(TotalPermisos.totalMinutos / 60);
-        minutos = TotalPermisos.totalMinutos % 60;
-        horas += TotalPermisos.totalHoras;
-        TotalPermisos.totalMinutos = minutos;
-      }
-      if (horas >= 8) {
-        dias = Math.trunc(horas / 8);
-        horas = horas % 8;
-        if (dias > 0) {
-          TotalPermisos.totalDias = dias;
-          TotalPermisos.totalHoras = horas;
-        }
-      }
-      return TotalPermisos;
+      return totalPermisosFuncion(id, idPeriodo)
     },
     obtenerPermisos: async (root, { id, idPeriodo, limite, offset }) => {
       const permisos = await Permisos.find({
@@ -281,9 +270,8 @@ export const resolvers = {
       return permisos;
     },
     // usuario
-    obtenerUsuario: async () => {
-      const usuario = await Usuarios.findOne();
-      return usuario;
+    obtenerUsuario: async (_, __, { usuario }) => {
+      return Usuarios.findById(usuario.id).exec()
     },
     //funcionarios
     obtenerFuncionario: async (root, { cedula }) => {
@@ -295,12 +283,28 @@ export const resolvers = {
     mostrarImagen: () => imagen,
   },
   Mutation: {
+    // descontar permisos masivos
+    descontarPermisosMasivo: async (_, { idPeriodo }) => {
+      const idsFuncionarioConPermisos = await Permisos.find({ descontado: false, periodo: idPeriodo }).distinct("funcionario");
+      if (Object.keys(idsFuncionarioConPermisos).length === 0) {
+        throw new Error("Funcionarios sin permisos para descontar")
+      }
+      idsFuncionarioConPermisos.forEach(async idFun => {
+        const res = await totalPermisosFuncion(idFun, idPeriodo);
+        const funcionario = await Funcionario.findById(idFun);
+        if (res.totalDias === 0) return;
+        if (funcionario.diasAFavor < res.totalDias) return;
+        await Funcionario.updateOne({ _id: idFun }, { $set: { diasAFavor: funcionario.diasAFavor - res.totalDias, minutosAcumulados: res.totalMinutos, horasAcumuladas: res.totalHoras } })
+        await Permisos.updateMany({ funcionario: idFun, periodo: idPeriodo }, { $set: { descontado: true } })
+      })
+      return "Permisos descontados"
+    },
     // recuparContraseña 
     recuperarPassword: async (_, { correo }) => {
       const existe = await Usuarios.find({ correo }).exec();
       if (Object.keys(existe).length === 0) return new Error("Este email no esta asociado a ninguna cuenta");
       const nuevoPassword = generarPasswordFuncion();
-      await Usuarios.findOneAndUpdate({ correo }, {id: existe[0]._id, nuevoPassword}).exec();
+      await Usuarios.findOneAndUpdate({ correo }, { id: existe[0]._id, nuevoPassword }).exec();
 
       let transporter = mail.createTransport({
         host: 'smtp.googlemail.com',
@@ -332,22 +336,31 @@ export const resolvers = {
       }
     },
     // usuario
-    crearUsuario: async (_, { usuario, nombre, password }) => {
-      const existeUsuario = await Usuarios.findOne({ usuario });
+    crearUsuario: async (_, { rol, nombre, password, correo }, { usuario }) => {
+      if (usuario.rol !== "ADMINISTRADOR") throw new Error("No tienes los privilegios suficientes")
+      const existeUsuario = await Usuarios.findOne({ correo });
       if (existeUsuario) {
         throw new Error("El usuario ya existe");
       }
       const nuevoUsuario = new Usuarios({
-        usuario,
+        rol,
         nombre,
         password,
+        correo
       });
-      nuevoUsuario.save();
-      return `Bienvenido ${usuario}, has activado tu cuenta`;
+      await nuevoUsuario.save();
+      return 'Has creado un nuevo Usuario';
     },
     actualizarUsuario: async (_, { input }) => {
-      await Usuarios.findOneAndUpdate(input.id, { ...input }).exec();
-      return "actualizado";
+      try {
+        await Usuarios.updateOne({ _id: input.id }, { rol: input.rol, nombre: input.nombre, correo: input.correo }).exec();
+        await Usuarios.findOneAndUpdate(
+          { _id: input.id },
+          { correo: input.correo, nuevoPassword: input.nuevoPassword }).exec();
+        return "Actualizado Correctamente";
+      } catch (error) {
+        console.log(error)
+      }
     },
     verificarPassword: async (_, { id, password }) => {
       try {
@@ -357,6 +370,26 @@ export const resolvers = {
         return res;
       } catch (error) {
         throw new Error(error)
+      }
+    },
+    cambiarRolUsuario: async (_, { id, rol }, { usuario }) => {
+      if (usuario.rol !== "ADMINISTRADOR") throw new AuthenticationError("no tienes privilegios para realizar esta acción")
+      try {
+        await Usuarios.updateOne({ _id: id }, { rol }).exec();
+        return "Rol de usuario cambiado correctamente"
+      } catch (error) {
+        console.log(error)
+        throw new Error("Hubo un error")
+      }
+    },
+    eliminarUsuario: async (_, { id }, { usuario }) => {
+      if (usuario.rol !== "ADMINISTRADOR") throw new AuthenticationError("no tienes privilegios para realizar esta acción");
+      try {
+        await Usuarios.findOneAndDelete({ _id: id }).exec();
+        return "Usuario eliminado"
+      } catch (error) {
+        console.log(error)
+        throw new Error("Hubo un error")
       }
     },
     // contratos
@@ -425,6 +458,7 @@ export const resolvers = {
         await Periodo.findOneAndDelete({ _id: id });
         await Permisos.deleteMany({ periodo: id });
         await Vacaciones.deleteMany({ periodo: id });
+        await Contratos.deleteMany({ periodo: id });
         return "Periodo eliminado";
       } catch (error) {
         console.log(error);
@@ -465,6 +499,7 @@ export const resolvers = {
         periodo: input.periodo,
         fechaSalida: input.fechaSalida,
         fechaEntrada: input.fechaEntrada,
+        motivo: input.motivo,
         diasSolicitados: input.diasSolicitados,
       });
       const { diasAFavor } = await Funcionario.findOne({
@@ -598,15 +633,28 @@ export const resolvers = {
       });
     },
     eliminarFuncionario: async (root, { id }) => {
-      return new Promise((resolve, reject) => {
-        Funcionario.findOneAndDelete({ _id: id }, (error) => {
-          if (error) reject(error);
-          else resolve("El Funcionario ha sido Eliminado Correctamente");
+      try {
+        await Funcionario.findOneAndDelete({ _id: id }, function (err, func) {
+          if (err) throw new Error('No se pudo eliminar el funcionario')
+          else {
+            if (func.nombreImagen) {
+              try {
+                fs.unlinkSync(path.join(__dirname, `../static/imagenes/${func.nombreImagen}`))
+              } catch (error) {
+                console.log(error)
+              }
+            }
+          }
         });
-      });
+        await Permisos.deleteMany({ funcionario: id });
+        await Vacaciones.deleteMany({ funcionario: id });
+        return "Datos del funcionario eliminados correctamente"
+      } catch (error) {
+        throw new Error("Hubo un error eliminando registros del funcionario")
+      }
     },
-    autenticarUsuario: async (root, { email, password }) => {
-      const usuario = await Usuarios.findOne({ correo: email });
+    autenticarUsuario: async (_, { email, password }) => {
+      const usuario = await Usuarios.findOne({ correo: email }).exec();
       if (!usuario) {
         throw new Error("Usuario no Encontrado");
       }
@@ -618,9 +666,15 @@ export const resolvers = {
       if (!passwordCorrecto) {
         throw new Error("La Contraseña no Coincide");
       }
+      const usuarioPayload = {
+        id: usuario._id,
+        rol: usuario.rol,
+        nombre: usuario.nombre,
+        correo: usuario.correo
+      }
 
       return {
-        token: crearToken(email, process.env.MI_CODIGO_SECRETO, "1d"),
+        token: crearToken(usuarioPayload, process.env.MI_CODIGO_SECRETO, "1d"),
       };
     },
     // Imagenes

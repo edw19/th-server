@@ -12,7 +12,7 @@ type Funcionario {
   tipoVinculacion: TipoVinculacion
   tipoFuncionario: String
   fechaNacimiento: String
-  tituloProfesional: String
+  tituloProfesional: [TituloProfesional]
   genero: Genero
   tipoSangre: String
   estadoCivil: String
@@ -22,6 +22,14 @@ type Funcionario {
   diasAFavor: Int
   horasAcumuladas: Int
   minutosAcumulados: Int
+  fechaIngreso: String
+  fechaSalida: String
+  desvinculacion: Boolean
+}
+
+type TituloProfesional {
+  nombre: String
+  principal: Boolean
 }
 
 type Permiso {
@@ -50,6 +58,7 @@ type Vacacion {
   funcionario: String
   fechaSalida: String
   fechaEntrada: String
+  motivo: String
   diasSolicitados: Int
   estado: Boolean
 }
@@ -120,7 +129,13 @@ input VacacionInput {
   periodo: ID!
   fechaSalida: String!
   fechaEntrada: String!
+  motivo: String!
   diasSolicitados: Int!
+}
+
+input TituloProfesionalInput {
+  nombre: String!
+  principal: Boolean
 }
 
 input FuncionarioInput {
@@ -134,7 +149,7 @@ input FuncionarioInput {
   tipoVinculacion: TipoVinculacion
   tipoFuncionario: String
   fechaNacimiento: String
-  tituloProfesional: String
+  tituloProfesional: [TituloProfesionalInput]
   genero: Genero
   tipoSangre: String
   estadoCivil: String
@@ -142,6 +157,11 @@ input FuncionarioInput {
   discapacidadDetalles: String
   nombreImagen: String
   diasAFavor: Int
+  horasAcumuladas: Int
+  minutosAcumulados: Int
+  fechaIngreso: String
+  fechaSalida: String
+  desvinculacion: Boolean
 }
 input PermisoInput {
   id: ID
@@ -167,11 +187,11 @@ input GuardarContratoInput {
 }
 type EmpleadosPorTipo {
   name: String
-  numero: Int
+  valor: Int
 }
 type PorcentajeMF {
   genero: String
-  porcentaje: Float
+  porcentaje: Int
   value: Int
 }
 type EdadPromedio {
@@ -191,19 +211,80 @@ type DiscapacidadFuncionario {
 }
 type Usuario {
   id: ID
-  usuario: String
+  rol: String
   nombre: String
   correo: String
 }
 input ActualizarUsuario {
   id: ID!
   nombre: String!
-  usuario: String!
+  rol : String!
   correo: String
   nuevoPassword: String
 }
 
+type Funcionarios {
+  cedula: String
+  nombre: String
+  segundoNombre: String
+  apellido: String
+  segundoApellido: String
+  diasAFavor: Int
+  tipoFuncionario: String
+  tipoVinculacion: String
+  tituloProfesional: String
+}
+
+type Reporte {
+  permisos: [Permiso]
+  resultado: TotalPermisosReporte
+}
+
+type TotalPermisosReporte {
+  totalPermisos: Int,
+  totalPermisosEnHoras: Int,
+  totalPermisosEnMinutos: Int,
+  diasDescontados: Int
+}
+
+type SaldoVacacionesPermisos  {
+  id: ID
+  cedula: String
+  nombre: String
+  segundoNombre: String
+  apellido: String
+  segundoApellido: String
+  nacionalidad: String
+  tipoVinculacion: TipoVinculacion
+  tipoFuncionario: String
+  fechaNacimiento: String
+  tituloProfesional: [TituloProfesional]
+  genero: Genero
+  tipoSangre: String
+  estadoCivil: String
+  discapacidad: Boolean
+  discapacidadDetalles: String
+  nombreImagen: String
+  diasAFavor: Int
+  horasAcumuladas: Int
+  minutosAcumulados: Int
+  fechaIngreso: String
+  fechaSalida: String
+  desvinculacion: Boolean
+  permisos: Int
+  vacaciones: Int
+}
+
 type Query {
+  #todos contratos
+  todosContratosFuncionario: Upload!
+  #Reportes
+  obtenerSaldoVacionesPermisosFuncionarios(periodo: ID, tipoFuncionario: String): [SaldoVacacionesPermisos]
+  obtenerPermisosReporte(id: ID!, periodo: ID!): Reporte
+  #obtenerusuario
+  obtenerUsuarios: [Usuario]
+  # obtener funcionarios
+  obtenerFuncionarios: [Funcionarios]
   #dashboard
   numeroEmpleadosPorTipo: [EmpleadosPorTipo]
   porcentajeHombreMujeres: [PorcentajeMF]
@@ -213,7 +294,7 @@ type Query {
   porcentajeFuncionarioDiscapacidad: [DiscapacidadFuncionario]
 
   #contratos
-  obtenerContratos(funcionario: ID!, limite: Int, offset: Int): ContratoCompleto
+  obtenerContratos(funcionario: ID!,periodo: ID!, limite: Int, offset: Int): ContratoCompleto
   #periodos
   obtenerPeriodos(limite: Int, offset: Int): Periodos
   #vacaciones
@@ -236,13 +317,19 @@ type Query {
 }
 
 type Mutation {
+
+  #descontar Permisos Masivo
+  descontarPermisosMasivo(idPeriodo: String!): String
+
   #recuperar
   recuperarPassword(correo: String!): String
   #usuario
-  crearUsuario(usuario: String!, nombre: String!, password: String): String
+  crearUsuario(rol: String!, nombre: String!, password: String!, correo: String!): String
   autenticarUsuario(email: String!, password: String!): Token
   actualizarUsuario(input: ActualizarUsuario!): String
   verificarPassword(id: ID!, password: String!): Boolean
+  cambiarRolUsuario(id: ID!, rol: String!): String
+  eliminarUsuario(id: ID!): String
   #contratos
   guardarContrato(input: GuardarContratoInput): String
   eliminarContrato(id: ID!, nombreArchivo: String!): String

@@ -1,4 +1,4 @@
-require('dotenv').config({path: '.env'})
+require('dotenv').config({ path: '.env' })
 import mongoose, { model, Schema } from "mongoose";
 import bcrypt from "bcrypt";
 
@@ -9,14 +9,14 @@ mongoose.set("useCreateIndex", true);
 const URI = process.env.MONGOOSE_URI
   ? process.env.MONGOOSE_URI
   : "mongodb://localhost/t-humano";
-  
+
 mongoose.connect(URI, { useNewUrlParser: true, useUnifiedTopology: true });
 
 const usuariosSchema = new Schema({
-  usuario: String,
   nombre: String,
   correo: String,
   password: String,
+  rol: String,
 });
 
 const funcionarioSchema = new Schema({
@@ -29,7 +29,10 @@ const funcionarioSchema = new Schema({
   tipoVinculacion: String,
   tipoFuncionario: String,
   fechaNacimiento: String,
-  tituloProfesional: String,
+  tituloProfesional: {
+    type: Array,
+    default: []
+  },
   genero: String,
   tipoSangre: String,
   estadoCivil: String,
@@ -53,6 +56,9 @@ const funcionarioSchema = new Schema({
     type: Date,
     default: Date.now,
   },
+  fechaIngreso: String,
+  fechaSalida: String,
+  desvinculacion: Boolean
 });
 
 const permisosSchema = new Schema({
@@ -79,6 +85,7 @@ const vacacionesSchema = new Schema({
   periodo: mongoose.Types.ObjectId,
   fechaSalida: String,
   fechaEntrada: String,
+  motivo: String,
   diasSolicitados: Number,
   estado: {
     type: Boolean,
@@ -120,16 +127,14 @@ const contratosSchema = new Schema({
 
 //hashear password de usuarios antes de guardar
 usuariosSchema.pre("findOneAndUpdate", function (next) {
-  console.log(this._update.nuevoPassword)
-  console.log(this._update.id)
-  if(this._update.nuevoPassword === "") next();
+  if (this._update.nuevoPassword === "" || typeof this._update.nuevoPassword === "undefined") next();
 
   if (this.getUpdate()) {
     bcrypt.genSalt(10, (error, salt) => {
       if (error) return next(error);
       bcrypt.hash(this._update.nuevoPassword, salt, (error, hash) => {
         if (error) return next(error);
-        this.updateOne({ _id: this._update.id }, { password: hash });
+        this.updateOne({ correo: this._update.correo }, { password: hash });
         next();
       });
     });
