@@ -12,6 +12,9 @@
 /build
 /dist
 /static
+/src/static/contratos
+/src/static/imagenes
+/src/static/masivo
 
 # misc
 .DS_Store

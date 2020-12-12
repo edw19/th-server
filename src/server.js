@@ -1,5 +1,5 @@
 import express from 'express';
-import { ApolloServer } from 'apollo-server-express';
+import { ApolloServer, AuthenticationError } from 'apollo-server-express';
 import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -7,6 +7,7 @@ import { typeDefs, resolvers } from './data/schema';
 import { existsSync, mkdirSync } from 'fs';
 import path from 'path';
 import { Contratos } from './data/db';
+// paquete para ccomprimir archivos de contratos
 import zip from 'express-zip'
 
 
@@ -60,7 +61,7 @@ app.get('/contratos-funcionario', async (req, res) => {
     res.zip(archivos)
 });
 app.get('/todos-contratos', async (req, res) => {
-    const result = await Contratos.find({ funcionario: req.query.funcionario}).exec();
+    const result = await Contratos.find({ funcionario: req.query.funcionario }).exec();
     let archivos = []
     result.forEach(contrato => {
         archivos.push({ path: path.join(__dirname, `/static/contratos/${contrato.nombreArchivo}`), name: removeAccents(contrato.nombreArchivo) })
@@ -68,7 +69,7 @@ app.get('/todos-contratos', async (req, res) => {
     res.zip(archivos)
 });
 app.get('/todos-contratos-periodo', async (req, res) => {
-    const result = await Contratos.find({ periodo: req.query.periodo}).exec();
+    const result = await Contratos.find({ periodo: req.query.periodo }).exec();
     let archivos = []
     result.forEach(contrato => {
         archivos.push({ path: path.join(__dirname, `/static/contratos/${contrato.nombreArchivo}`), name: removeAccents(contrato.nombreArchivo) })
@@ -80,6 +81,7 @@ app.get('/todos-contratos-periodo', async (req, res) => {
 
 app.use('/imagenes', express.static(path.join(__dirname, './static/imagenes')));
 app.use('/contratos', express.static(path.join(__dirname, './static/contratos')));
+app.use('/formato', express.static(path.join(__dirname, './static/formato de registro de funcionarios.xlsx')));
 
 // funcion para quitar accentos en javascript
 const removeAccents = (str) => {
@@ -94,10 +96,10 @@ async function context({ req }) {
             const usuario = jwt.verify(token.replace('Bearer ', ''), process.env.MI_CODIGO_SECRETO)
             return usuario
         } catch (error) {
-            console.log(error)
-            // throw new AuthenticationError(
-            //     'no tienes un token de session, loggeate'
-            // )
+            // console.log(error)
+            throw new AuthenticationError(
+                'no tienes un token de session, loggeate'
+            )
         }
     }
 }
@@ -116,7 +118,7 @@ const server = new ApolloServer({
             "request.credentials": 'same-origin'
         }
     },
-    formatError 
+    // formatError 
 })
 
 

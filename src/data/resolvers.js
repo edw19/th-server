@@ -17,9 +17,8 @@ import fs from 'fs'
 import { AuthenticationError } from "apollo-server-express";
 import { totalPermisosFuncion } from "./helpers";
 import { totalPermisosReportes } from "./helpers";
+import exceltojson from 'convert-excel-to-json';
 const ObjectId = mongoose.Types.ObjectId;
-
-
 
 // generar token de autenticación
 const crearToken = (usuario, secreto, expiresIn) => {
@@ -40,10 +39,13 @@ let imagen = [];
 
 export const resolvers = {
   Query: {
-
-    // todos los archivos de un funcionario
-    todosContratosFuncionario: () => {
-
+    estasAutenticado: (_, { token }) => {
+      try {
+        jwt.verify(token, process.env.MI_CODIGO_SECRETO);
+        return true;
+      } catch (error) {
+        throw new Error('Sesión ha caducado')
+      }
     },
     // Reportes 
     obtenerSaldoVacionesPermisosFuncionarios: async (_, { periodo, tipoFuncionario }) => {
@@ -51,7 +53,7 @@ export const resolvers = {
       if (tipoFuncionario === '*') {
         funcionarios = await Funcionario.aggregate([
           { $lookup: { from: 'permisos', localField: '_id', foreignField: 'funcionario', as: 'permisos' } },
-          { $lookup: { from: 'vacaciones', localField: '_id', foreignField: 'funcionario', as: 'vacaciones' } }
+          { $lookup: { from: 'vacaciones', localField: '_id', foreignField: 'funcionario', as: 'vacaciones' } },
         ]).sort({ apellido: 1 });
       } else {
         funcionarios = await Funcionario.aggregate([
@@ -72,7 +74,7 @@ export const resolvers = {
       const resultado = await totalPermisosReportes(id, periodo);
       reporte.permisos = res
       reporte.resultado = resultado
-      return reporte
+      return reporte;
     },
     // usuarios
     obtenerUsuarios: async (_, __, { usuario }) => {
@@ -141,8 +143,8 @@ export const resolvers = {
         fechasF.push({ fecha: funcionario.fechaNacimiento });
       });
       return [
-        { genero: "Masculino", fechas: fechasM },
-        { genero: "Femenino", fechas: fechasF },
+        { genero: "Hombres", fechas: fechasM },
+        { genero: "Mujeres", fechas: fechasF },
       ];
     },
     masPermisos: async () => {
@@ -289,10 +291,17 @@ export const resolvers = {
       if (Object.keys(idsFuncionarioConPermisos).length === 0) {
         throw new Error("Funcionarios sin permisos para descontar")
       }
+      console.log(idsFuncionarioConPermisos)
       idsFuncionarioConPermisos.forEach(async idFun => {
         const res = await totalPermisosFuncion(idFun, idPeriodo);
+        console.log(res)
         const funcionario = await Funcionario.findById(idFun);
-        if (res.totalDias === 0) return;
+        console.log(funcionario)
+        if (res.totalDias === 0) {
+          await Funcionario.findOneAndUpdate({ _id: idFun }, { $set: { horasAcumuladas: res.totalHoras, minutosAcumulados: res.totalMinutos } }).exec();
+          await Permisos.updateMany({ funcionario: idFun, periodo: idPeriodo }, { $set: { descontado: true } })
+          return;
+        };
         if (funcionario.diasAFavor < res.totalDias) return;
         await Funcionario.updateOne({ _id: idFun }, { $set: { diasAFavor: funcionario.diasAFavor - res.totalDias, minutosAcumulados: res.totalMinutos, horasAcumuladas: res.totalHoras } })
         await Permisos.updateMany({ funcionario: idFun, periodo: idPeriodo }, { $set: { descontado: true } })
@@ -468,8 +477,8 @@ export const resolvers = {
     actualizarDiasHabiles: async (_, { id, dias, sumar }) => {
       const funcionarioExiste = await Funcionario.findOne({ _id: id });
       if (!funcionarioExiste) throw new Error("Funcionario no existe");
-      if (dias > funcionarioExiste.diasAFavor)
-        throw new Error("Días a favor insuficientes");
+      // if (dias > funcionarioExiste.diasAFavor)
+      //   throw new Error("Días a favor insuficientes");
 
       if (sumar) {
         await Funcionario.findOneAndUpdate(
@@ -544,6 +553,14 @@ export const resolvers = {
         minutos,
       }
     ) => {
+      if (dias === 0) {
+        await Permisos.updateMany(
+          { funcionario, periodo },
+          { descontado: true }
+        );
+        return "Permisos agregados al reporte"
+      }
+
       if (horasAcumuladas > 0 || minutosAcumulados > 0) {
         await Funcionario.findByIdAndUpdate(funcionario, {
           horasAcumuladas: 0,
@@ -577,10 +594,12 @@ export const resolvers = {
       });
     },
     crearPermiso: async (_, { input }) => {
+      const tieneDias = await Funcionario.findById(input.funcionario);
+      if (tieneDias.diasAFavor <= 1) throw new Error("Este Funcionario no tiene días disponibles suficientes");
       const nuevoPermiso = new Permisos({
         funcionario: input.funcionario,
         periodo: input.periodo,
-        permiso: input.permiso,
+        fechaSalida: input.fechaSalida,
         horaSalida: input.horaSalida,
         horasPermiso: input.horasPermiso,
         minutosPermiso: input.minutosPermiso,
@@ -637,11 +656,13 @@ export const resolvers = {
         await Funcionario.findOneAndDelete({ _id: id }, function (err, func) {
           if (err) throw new Error('No se pudo eliminar el funcionario')
           else {
-            if (func.nombreImagen) {
-              try {
-                fs.unlinkSync(path.join(__dirname, `../static/imagenes/${func.nombreImagen}`))
-              } catch (error) {
-                console.log(error)
+            if (func) {
+              if (func.nombreImagen) {
+                try {
+                  fs.unlinkSync(path.join(__dirname, `../static/imagenes/${func.nombreImagen}`))
+                } catch (error) {
+                  console.log(error)
+                }
               }
             }
           }
@@ -674,11 +695,10 @@ export const resolvers = {
       }
 
       return {
-        token: crearToken(usuarioPayload, process.env.MI_CODIGO_SECRETO, "1d"),
+        token: crearToken(usuarioPayload, process.env.MI_CODIGO_SECRETO, "7d"),
       };
     },
     // Imagenes
-
     uploadFile: async (_, { file }) => {
       const { createReadStream, filename } = await file;
       await new Promise((resolve) => {
@@ -697,5 +717,100 @@ export const resolvers = {
       imagen.push(filename);
       return true;
     },
+    fileMasivo: async (_, { file }) => {
+      const { createReadStream, filename } = await file;
+      await new Promise((resolve) => {
+        createReadStream().pipe(
+          createWriteStream(
+            path.join(__dirname, "../static/masivo/", filename)
+          )
+        ).on('data', async (doc) => {
+          console.log(doc)
+        })
+          .on('close', resolve)
+      })
+
+      const excel = exceltojson({
+        sourceFile: path.join(__dirname, `../static/masivo/${filename}`)
+      });
+
+      let funcionarios = [];
+      let error = false;
+      let mensaje = ""
+
+      for (let x = 0; x < excel.Funcionarios.length; x++) {
+        if (x > 0) {
+          for (let y = 0; y < excel.Funcionarios.length; y++) {
+            if (y > 0 && x !== y) {
+              if (excel.Funcionarios[x].A === excel.Funcionarios[y].A) {
+                error = true;
+                mensaje = `Registros duplicados en la celda A${y + 1} y A${x + 1}`
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (error) {
+        throw new Error(`El documento contiene números de cédula duplicados. Revisar el campo cédula. ${mensaje}`)
+      }
+
+
+      for (let i = 0; i < excel.Funcionarios.length; i++) {
+        let funcionario = {}
+        if (i > 0) {
+          const existe = await Funcionario.findOne({ cedula: excel.Funcionarios[i].A });
+          if (existe) {
+            mensaje = `registro duplicado en la celda A${i + 1}`
+            error = true;
+            break;
+          }
+          funcionario.cedula = excel.Funcionarios[i].A;
+          funcionario.tipoFuncionario = excel.Funcionarios[i].B;
+          funcionario.fechaIngreso = excel.Funcionarios[i].C;
+          funcionario.fechaSalida = excel.Funcionarios[i].D;
+          funcionario.nombre = excel.Funcionarios[i].E;
+          funcionario.segundoNombre = excel.Funcionarios[i].F;
+          funcionario.apellido = excel.Funcionarios[i].G;
+          funcionario.segundoApellido = excel.Funcionarios[i].H;
+          funcionario.nacionalidad = excel.Funcionarios[i].I;
+          funcionario.tipoVinculacion = excel.Funcionarios[i].J;
+          funcionario.fechaNacimiento = excel.Funcionarios[i].K;
+          const titulos = []
+          const titulosSplit = excel.Funcionarios[i].L.split(',')
+          titulosSplit.forEach((tit, index) => {
+            let titulo = {};
+            titulo.nombre = tit;
+            titulo.principal = index === 0 ? true : false;
+            titulos.push(titulo);
+          });
+          funcionario.tituloProfesional = titulos
+          funcionario.genero = excel.Funcionarios[i].M;
+          funcionario.tipoSangre = excel.Funcionarios[i].N;
+          funcionario.estadoCivil = excel.Funcionarios[i].O;
+          funcionario.discapacidad = excel.Funcionarios[i].P.toUpperCase() === 'SI' ? true : false;
+          funcionario.discapacidadDetalles = typeof excel.Funcionarios[i].Q === 'undefined' ? '' : excel.Funcionarios[i].Q;
+          funcionario.nombreImagen = "";
+          funcionario.diasAFavor = excel.Funcionarios[i].R;
+          funcionarios.push(funcionario);
+        }
+      }
+
+      if (error) {
+        throw new Error(`EL documento proporcionado contiene funcionarios que ya estan registrados en el sistema, ${mensaje}`)
+      }
+
+      try {
+        await Funcionario.insertMany(funcionarios);
+        unlinkSync(
+          path.join(__dirname, `../static/masivo/${filename}`)
+        );
+        return `${Object.keys(funcionarios).length} Funcionarios Registrados correctamente`
+      } catch (error) {
+        throw new Error("Hubo un error con el documento proporcionado")
+      }
+    }
+
   },
 };

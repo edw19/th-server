@@ -36,6 +36,7 @@ type Permiso {
   id: ID
   funcionario: ID
   periodo: ID
+  fechaSalida: String
   horaSalida: String
   horasPermiso: Int
   minutosPermiso: Int
@@ -115,6 +116,8 @@ type Contrato {
   tipoContrato: String
   contrato: Boolean
   nombramiento: Boolean
+  vigenciaInicio: String
+  vigenciaFinal: String
   fechaInicioActividades: String
 }
 
@@ -167,6 +170,7 @@ input PermisoInput {
   id: ID
   funcionario: ID
   periodo: ID
+  fechaSalida: String
   horaSalida: String
   horasPermiso: Int
   minutosPermiso: Int
@@ -183,6 +187,8 @@ input GuardarContratoInput {
   tipoContrato: String!
   contrato: Boolean
   nombramiento: Boolean
+  vigenciaInicio: String
+  vigenciaFinal: String
   fechaInicioActividades: String
 }
 type EmpleadosPorTipo {
@@ -245,6 +251,12 @@ type TotalPermisosReporte {
   totalPermisosEnHoras: Int,
   totalPermisosEnMinutos: Int,
   diasDescontados: Int
+  totalPorMotivo: [TotalPorMotivo]
+}
+
+type TotalPorMotivo {
+  motivo: String
+  valor: Int
 }
 
 type SaldoVacacionesPermisos  {
@@ -276,6 +288,8 @@ type SaldoVacacionesPermisos  {
 }
 
 type Query {
+  #Autenticado 
+  estasAutenticado(token: String!): Boolean
   #todos contratos
   todosContratosFuncionario: Upload!
   #Reportes
@@ -362,4 +376,5 @@ type Mutation {
   eliminarFuncionario(id: ID!): String
   #subir imagenes
   uploadFile(file: Upload!): Boolean
+  fileMasivo(file: Upload!): String
 }`;

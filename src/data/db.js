@@ -21,10 +21,22 @@ const usuariosSchema = new Schema({
 
 const funcionarioSchema = new Schema({
   cedula: String,
-  nombre: String,
-  segundoNombre: String,
-  apellido: String,
-  segundoApellido: String,
+  nombre: {
+    type: String,
+    uppercase: true
+  },
+  segundoNombre: {
+    type: String,
+    uppercase: true
+  },
+  apellido: {
+    type: String,
+    uppercase: true
+  },
+  segundoApellido: {
+    type: String,
+    uppercase: true
+  },
   nacionalidad: String,
   tipoVinculacion: String,
   tipoFuncionario: String,
@@ -64,6 +76,7 @@ const funcionarioSchema = new Schema({
 const permisosSchema = new Schema({
   funcionario: mongoose.Types.ObjectId,
   periodo: mongoose.Types.ObjectId,
+  fechaSalida: String,
   horaSalida: String,
   horasPermiso: Number,
   minutosPermiso: Number,
@@ -119,6 +132,8 @@ const contratosSchema = new Schema({
   contrato: Boolean,
   nombramiento: Boolean,
   fechaInicioActividades: String,
+  vigenciaInicio: String,
+  vigenciaFinal: String,
   creado_en: {
     type: Date,
     default: Date.now,
