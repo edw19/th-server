@@ -346,7 +346,7 @@ export const resolvers = {
     },
     // usuario
     crearUsuario: async (_, { rol, nombre, password, correo }, { usuario }) => {
-      if (usuario.rol !== "ADMINISTRADOR") throw new Error("No tienes los privilegios suficientes")
+      // if (usuario.rol !== "ADMINISTRADOR") throw new Error("No tienes los privilegios suficientes")
       const existeUsuario = await Usuarios.findOne({ correo });
       if (existeUsuario) {
         throw new Error("El usuario ya existe");
@@ -553,7 +553,12 @@ export const resolvers = {
         minutos,
       }
     ) => {
-      if (dias === 0) {
+      if (dias === 0 ) {
+        await Funcionario.findByIdAndUpdate(funcionario, {
+          diasAFavor: diasAFavor - dias,
+          horasAcumuladas: horas,
+          minutosAcumulados: minutos,
+        });
         await Permisos.updateMany(
           { funcionario, periodo },
           { descontado: true }

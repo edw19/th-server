@@ -88,7 +88,6 @@ const removeAccents = (str) => {
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-
 async function context({ req }) {
     const token = req.headers['authorization'];
     if (token) {
@@ -96,7 +95,6 @@ async function context({ req }) {
             const usuario = jwt.verify(token.replace('Bearer ', ''), process.env.MI_CODIGO_SECRETO)
             return usuario
         } catch (error) {
-            // console.log(error)
             throw new AuthenticationError(
                 'no tienes un token de session, loggeate'
             )
@@ -118,7 +116,7 @@ const server = new ApolloServer({
             "request.credentials": 'same-origin'
         }
     },
-    // formatError 
+    formatError 
 })
 
 

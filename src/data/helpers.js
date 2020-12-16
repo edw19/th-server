@@ -172,6 +172,8 @@ export const totalPermisosReportes = async (id, idPeriodo) => {
 
     let dias = 0;
 
+    if (Object.keys(diasDescontados).length === 0) return TotalPermisos;
+
     if (diasDescontados[0].totalHoras >= 8) {
         dias = Math.trunc(diasDescontados[0].totalHoras / 8);
         if (dias > 0) {

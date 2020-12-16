@@ -8,9 +8,9 @@ mongoose.set("useCreateIndex", true);
 
 const URI = process.env.MONGOOSE_URI
   ? process.env.MONGOOSE_URI
-  : "mongodb://localhost/t-humano";
+  : "mongodb://mongodb:27017/t-humano";
 
-mongoose.connect(URI, { useNewUrlParser: true, useUnifiedTopology: true });
+mongoose.connect(URI, { useNewUrlParser: true, useUnifiedTopology: true })
 
 const usuariosSchema = new Schema({
   nombre: String,
