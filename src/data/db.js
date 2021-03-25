@@ -8,7 +8,7 @@ mongoose.set("useCreateIndex", true);
 
 const URI = process.env.MONGOOSE_URI
   ? process.env.MONGOOSE_URI
-  : "mongodb://127.0.0.1:27017/t-humano";
+  : "mongodb://190.15.129.83:27017/t-humano";
 
 mongoose.connect(URI, { useNewUrlParser: true, useUnifiedTopology: true })
 
