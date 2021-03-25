@@ -19,7 +19,7 @@ existsSync(path.join(__dirname, "./static/contratos")) || mkdirSync(path.join(__
 
 // Configuraciones 
 const corsOptions = {
-    origin: 'http://localhost:3000',
+    origin: 'http://190.15.129.83:3000',
     credentials: true
 }
 app.set('port', process.env.PORT || 5000);
