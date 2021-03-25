@@ -22,7 +22,7 @@ const corsOptions = {
     origin: 'http://190.15.129.83:3000',
     credentials: true
 }
-app.set('port', process.env.PORT || 5000);
+app.set('port', 5000);
 app.disable('x-powered-by');
 
 // middlewares
@@ -92,7 +92,7 @@ async function context({ req }) {
     const token = req.headers['authorization'];
     if (token) {
         try {
-            const usuario = jwt.verify(token.replace('Bearer ', ''), process.env.MI_CODIGO_SECRETO)
+            const usuario = jwt.verify(token.replace('Bearer ', ''), "talentohumano2020");
             return usuario
         } catch (error) {
             throw new AuthenticationError(
@@ -116,7 +116,7 @@ const server = new ApolloServer({
             "request.credentials": 'same-origin'
         }
     },
-    formatError 
+//    formatError
 })
 
 

@@ -1,4 +1,4 @@
-require('dotenv').config({ path: '.env' })
+//require('dotenv').config({ path: '.env' })
 import {
   Usuarios,
   Funcionario,
@@ -41,7 +41,7 @@ export const resolvers = {
   Query: {
     estasAutenticado: (_, { token }) => {
       try {
-        jwt.verify(token, process.env.MI_CODIGO_SECRETO);
+        jwt.verify(token, "talentohumano2020");
         return true;
       } catch (error) {
         throw new Error('Sesión ha caducado')
@@ -700,7 +700,7 @@ export const resolvers = {
       }
 
       return {
-        token: crearToken(usuarioPayload, process.env.MI_CODIGO_SECRETO, "7d"),
+        token: crearToken(usuarioPayload, "talentohumano2020", "7d"),
       };
     },
     // Imagenes
@@ -724,19 +724,24 @@ export const resolvers = {
     },
     fileMasivo: async (_, { file }) => {
       const { createReadStream, filename } = await file;
-      await new Promise((resolve) => {
-        createReadStream().pipe(
+	console.log("PATH_NAME", __dirname)
+        await new Promise((resolve) => {
+         createReadStream().pipe(
           createWriteStream(
             path.join(__dirname, "../static/masivo/", filename)
-          )
+           )
         ).on('data', async (doc) => {
-          console.log(doc)
+         console.log(doc)
         })
           .on('close', resolve)
       })
+	
+	const pathSource = path.join(__dirname, `../static/masivo/${filename}`);
+      console.log("pathSource", pathSource);
+
 
       const excel = exceltojson({
-        sourceFile: path.join(__dirname, `../static/masivo/${filename}`)
+        sourceFile: pathSource
       });
 
       let funcionarios = [];

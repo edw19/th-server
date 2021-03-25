@@ -1,4 +1,4 @@
-require('dotenv').config({ path: '.env' })
+//require('dotenv').config({ path: '.env' })
 import mongoose, { model, Schema } from "mongoose";
 import bcrypt from "bcrypt";
 
@@ -6,9 +6,7 @@ mongoose.Promise = global.Promise;
 mongoose.set("useFindAndModify", false);
 mongoose.set("useCreateIndex", true);
 
-const URI = process.env.MONGOOSE_URI
-  ? process.env.MONGOOSE_URI
-  : "mongodb://mongodb/t-humano";
+const URI = "mongodb://mongodb/t-humano";
 
 mongoose.connect(URI, { useNewUrlParser: true, useUnifiedTopology: true })
 
